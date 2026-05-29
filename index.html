@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DICOP — Digital Competitive Profile</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: #e0ddd6;
+    --accent: #1a3a5c;
+    --accent2: #c9a84c;
+    --text: #1c1c1a;
+    --muted: #6b6b67;
+    --red: #c0392b;
+    --yellow: #d4ac0d;
+    --green: #1a7a4a;
+    --radius: 10px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Georgia', 'Times New Roman', serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  h1,h2,h3,h4 { font-family: 'Georgia', serif; font-weight: normal; }
+
+  /* Header */
+  #app-header {
+    background: var(--accent);
+    color: #fff;
+    padding: 1.2rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  #app-header h1 { font-size: 1.3rem; letter-spacing: 2px; text-transform: uppercase; }
+  #app-header .subtitle { font-size: 0.75rem; opacity: 0.7; font-family: sans-serif; margin-top: 2px; }
+  .step-indicators { display: flex; gap: 8px; }
+  .step-dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: background 0.3s; }
+  .step-dot.active { background: var(--accent2); }
+  .step-dot.done { background: rgba(255,255,255,0.7); }
+
+  /* Main layout */
+  #app-main { max-width: 900px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+
+  /* Step containers */
+  .step { display: none; animation: fadeIn 0.3s ease; }
+  .step.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 1rem;
+    color: var(--accent);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-family: sans-serif;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--accent2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-label {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.7rem;
+    font-family: sans-serif;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+  .step-title { font-size: 1.6rem; color: var(--accent); margin-bottom: 0.4rem; }
+  .step-desc { color: var(--muted); font-size: 0.9rem; font-family: sans-serif; line-height: 1.6; margin-bottom: 1.5rem; }
+
+  /* Form elements */
+  label { font-size: 0.8rem; font-family: sans-serif; color: var(--muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  input[type=text], select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: sans-serif;
+    color: var(--text);
+    background: #fafaf8;
+    transition: border-color 0.2s;
+  }
+  input[type=text]:focus, select:focus { outline: none; border-color: var(--accent); background: #fff; }
+  select:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .org-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+  .org-field { }
+  .org-badge { font-size: 0.7rem; background: #e8f4ec; color: var(--green); padding: 2px 7px; border-radius: 10px; margin-left: 6px; font-family: sans-serif; }
+
+  /* Profile table */
+  .profiles-table { width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.9rem; }
+  .profiles-table th { text-align: left; padding: 8px 10px; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); }
+  .profiles-table td { padding: 10px 10px; border-bottom: 1px solid #f0ede8; vertical-align: middle; }
+  .profiles-table tr:last-child td { border-bottom: none; }
+  .profile-name { font-weight: 500; color: var(--text); }
+
+  /* Toggle */
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .toggle-track { width: 40px; height: 22px; border-radius: 11px; background: #d0cdc8; position: relative; transition: background 0.2s; flex-shrink: 0; }
+  .toggle-track.on { background: var(--accent); }
+  .toggle-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; position: absolute; top: 3px; left: 3px; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle-track.on .toggle-thumb { left: 21px; }
+  .toggle-label { font-size: 0.8rem; color: var(--muted); }
+
+  /* Pond chip */
+  .pond-chip { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-family: sans-serif; font-weight: 600; text-align: center; min-width: 50px; }
+  .pond-zero { background: #f0ede8; color: #aaa; }
+  .pond-low { background: #fdecea; color: #c0392b; }
+  .pond-mid { background: #eaf5f0; color: var(--green); }
+  .pond-high { background: #edf3fb; color: #1a5c9a; }
+  .pond-vhigh { background: #f0edff; color: #5a3eb5; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 24px; border-radius: 6px; font-size: 0.95rem; font-family: sans-serif; cursor: pointer; border: none; transition: all 0.2s; font-weight: 500; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #0f2840; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-secondary { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+  .btn-secondary:hover { background: var(--accent); color: #fff; }
+  .btn-gold { background: var(--accent2); color: #fff; }
+  .btn-gold:hover { background: #b8973e; }
+  .btn-row { display: flex; gap: 10px; margin-top: 1.5rem; flex-wrap: wrap; }
+
+  /* Evaluation */
+  .eval-org-tabs { display: flex; gap: 6px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .org-tab { padding: 7px 16px; border-radius: 6px; font-family: sans-serif; font-size: 0.85rem; cursor: pointer; border: 1.5px solid var(--border); background: #fafaf8; color: var(--muted); transition: all 0.2s; }
+  .org-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .org-tab.done { background: #eaf5f0; color: var(--green); border-color: var(--green); }
+
+  .section-block { margin-bottom: 1.5rem; }
+  .section-header { background: var(--accent); color: #fff; padding: 8px 14px; border-radius: 6px 6px 0 0; font-family: sans-serif; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+  .section-score { background: var(--accent2); color: #fff; padding: 2px 10px; border-radius: 20px; font-size: 0.8rem; }
+  .section-body { background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; overflow: hidden; }
+  .subsection { }
+  .subsection-header { background: #f0ede8; padding: 6px 14px; font-family: sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .question-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid #f5f3ef; gap: 12px; }
+  .question-row:last-child { border-bottom: none; }
+  .question-text { font-family: sans-serif; font-size: 0.88rem; color: var(--text); flex: 1; line-height: 1.4; }
+  .question-note { font-size: 0.75rem; color: var(--muted); font-style: italic; }
+  .yesno-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  .yn-btn { padding: 5px 14px; border-radius: 5px; font-family: sans-serif; font-size: 0.82rem; cursor: pointer; border: 1.5px solid var(--border); background: #fafaf8; color: var(--muted); font-weight: 500; transition: all 0.15s; }
+  .yn-btn.yes.sel { background: #eaf5f0; color: var(--green); border-color: var(--green); }
+  .yn-btn.no.sel { background: #fdecea; color: var(--red); border-color: var(--red); }
+  .exclusive-group .question-row { cursor: pointer; }
+  .exclusive-group .question-row:hover { background: #fafaf8; }
+  .exclusive-row-sel { background: #eaf5f0 !important; }
+  .exclusive-check { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .exclusive-check.checked { background: var(--green); border-color: var(--green); }
+  .exclusive-check.checked::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+
+  .progress-bar-wrap { background: #f0ede8; border-radius: 4px; height: 6px; margin-bottom: 1.5rem; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.4s; }
+
+  /* Dashboard */
+  .score-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .score-card-header { padding: 12px 16px; background: var(--accent); color: #fff; font-family: sans-serif; }
+  .score-card-name { font-size: 0.95rem; font-weight: 600; }
+  .score-card-own { font-size: 0.7rem; opacity: 0.7; margin-top: 1px; }
+  .score-card-body { padding: 16px; text-align: center; background: var(--surface); }
+  .big-score { font-size: 3rem; font-weight: normal; color: var(--accent); line-height: 1; }
+  .score-label { font-size: 0.75rem; font-family: sans-serif; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .score-color-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+
+  .traffic-light { display: inline-flex; align-items: center; gap: 6px; font-family: sans-serif; font-size: 0.85rem; }
+  .tl-red { color: var(--red); font-weight: 600; }
+  .tl-yellow { color: #b8870d; font-weight: 600; }
+  .tl-green { color: var(--green); font-weight: 600; }
+
+  .detail-table { width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.85rem; margin-top: 0.5rem; }
+  .detail-table th { text-align: left; padding: 7px 10px; background: #f5f4f0; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); }
+  .detail-table td { padding: 8px 10px; border-bottom: 1px solid #f0ede8; }
+  .detail-table tr:last-child td { border-bottom: none; }
+  .bar-cell { width: 120px; }
+  .mini-bar-wrap { background: #f0ede8; border-radius: 3px; height: 8px; overflow: hidden; }
+  .mini-bar { height: 100%; border-radius: 3px; }
+
+  .chart-wrap { position: relative; width: 100%; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; font-family: sans-serif; font-size: 0.8rem; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-square { width: 12px; height: 12px; border-radius: 2px; }
+
+  .error-msg { color: var(--red); font-size: 0.82rem; font-family: sans-serif; margin-top: 6px; }
+  .info-note { background: #f0f4f8; border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 0.84rem; font-family: sans-serif; color: var(--muted); line-height: 1.5; margin-bottom: 1rem; }
+
+  @media print {
+    #app-header .step-indicators, .btn-row, .eval-org-tabs { display: none; }
+    .step { display: block !important; page-break-after: always; }
+  }
+  @media (max-width: 600px) {
+    #app-main { padding: 1rem 0.5rem 3rem; }
+    .org-grid { grid-template-columns: 1fr 1fr; }
+    .score-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app-header">
+  <div>
+    <h1>DICOP</h1>
+    <div class="subtitle">Digital Competitive Profile</div>
+  </div>
+  <div class="step-indicators">
+    <div class="step-dot active" id="dot-1"></div>
+    <div class="step-dot" id="dot-2"></div>
+    <div class="step-dot" id="dot-3"></div>
+    <div class="step-dot" id="dot-4"></div>
+  </div>
+</div>
+
+<div id="app-main">
+
+<!-- ===================== STEP 1: CONFIGURACIÓN ===================== -->
+<div class="step active" id="step-1">
+  <span class="step-label">Paso 1 de 4</span>
+  <h2 class="step-title">Configuración inicial</h2>
+  <p class="step-desc">Ingresá los nombres de las organizaciones a evaluar y configurá qué perfiles digitales querés incluir y con qué peso relativo.</p>
+
+  <div class="card">
+    <div class="card-title">Organizaciones</div>
+    <div class="org-grid">
+      <div class="org-field">
+        <label>Organización 1 <span class="org-badge">Propia</span></label>
+        <input type="text" id="org-0" placeholder="Mi empresa" />
+      </div>
+      <div class="org-field">
+        <label>Organización 2</label>
+        <input type="text" id="org-1" placeholder="Competidor A" />
+      </div>
+      <div class="org-field">
+        <label>Organización 3</label>
+        <input type="text" id="org-2" placeholder="Competidor B" />
+      </div>
+      <div class="org-field">
+        <label>Organización 4</label>
+        <input type="text" id="org-3" placeholder="Competidor C" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Perfiles digitales a evaluar</div>
+    <div class="info-note">Activá los perfiles relevantes para tu sector. El peso relativo determina cuánto influye cada perfil en la puntuación total. La ponderación final se calcula automáticamente.</div>
+    <table class="profiles-table">
+      <thead>
+        <tr>
+          <th>Perfil digital</th>
+          <th>Incluir</th>
+          <th>Peso relativo</th>
+          <th style="text-align:right">Ponderación</th>
+        </tr>
+      </thead>
+      <tbody id="profiles-tbody"></tbody>
+    </table>
+    <div id="profile-error" class="error-msg" style="display:none;margin-top:8px;">⚠ Un perfil activo tiene peso "No pondera". Corregilo antes de continuar.</div>
+    <div style="margin-top:10px;font-family:sans-serif;font-size:0.82rem;color:var(--muted);">
+      Suma de ponderaciones: <strong id="total-pond">0.00</strong>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-to-2" onclick="goToStep(2)">Continuar a evaluación →</button>
+  </div>
+</div>
+
+<!-- ===================== STEP 2: EVALUACIÓN ===================== -->
+<div class="step" id="step-2">
+  <span class="step-label">Paso 2 de 4</span>
+  <h2 class="step-title">Evaluación</h2>
+  <p class="step-desc">Respondé Sí o No para cada organización. Usá las solapas para cambiar de organización.</p>
+
+  <div class="eval-org-tabs" id="org-tabs"></div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="eval-progress" style="width:0%"></div></div>
+  <div id="eval-content"></div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="goToStep(1)">← Volver</button>
+    <button class="btn btn-primary" id="btn-to-3" onclick="goToStep(3)">Ver resultados →</button>
+  </div>
+</div>
+
+<!-- ===================== STEP 3: DASHBOARD ===================== -->
+<div class="step" id="step-3">
+  <span class="step-label">Paso 3 de 4</span>
+  <h2 class="step-title">Dashboard de resultados</h2>
+  <p class="step-desc">Puntuación comparativa del Perfil Competitivo Digital (DICOP) para todas las organizaciones.</p>
+
+  <div id="dashboard-content"></div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="goToStep(2)">← Volver a evaluación</button>
+    <button class="btn btn-primary" onclick="goToStep(4)">Ver análisis detallado →</button>
+    <button class="btn btn-gold" onclick="exportReport()">⬇ Descargar reporte HTML</button>
+  </div>
+</div>
+
+<!-- ===================== STEP 4: ANÁLISIS DETALLADO ===================== -->
+<div class="step" id="step-4">
+  <span class="step-label">Paso 4 de 4</span>
+  <h2 class="step-title">Análisis detallado</h2>
+  <p class="step-desc">Desglose por perfil digital y organización.</p>
+
+  <div id="detail-content"></div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="goToStep(3)">← Dashboard</button>
+    <button class="btn btn-gold" onclick="exportReport()">⬇ Descargar reporte HTML</button>
+  </div>
+</div>
+
+</div><!-- /app-main -->
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const ORG_COLORS = ['#1a3a5c','#c9a84c','#2e7d6e','#8b3a62'];
+
+const PROFILES_DEF = [
+  { id:'buscadores', label:'Buscadores (SEO)' },
+  { id:'redes',      label:'Redes sociales' },
+  { id:'web',        label:'Sitio web' },
+  { id:'email',      label:'Suscripción a e-mail marketing' },
+  { id:'portales_h', label:'Portales horizontales' },
+  { id:'portales_v', label:'Portales especializados' },
+  { id:'contenido',  label:'Contenido en perfiles digitales' },
+];
+
+const WEIGHTS_LIST = [
+  { label:'Mucho más bajo', value:0.5 },
+  { label:'Más bajo',       value:0.75 },
+  { label:'Media',          value:1 },
+  { label:'Más alto',       value:1.25 },
+  { label:'Mucho más alto', value:1.5 },
+  { label:'No pondera',     value:0 },
+];
+
+// Each profile section definition
+const SECTIONS = {
+  buscadores: {
+    label: 'Buscadores',
+    subsections: [
+      { id:'google', label:'Google', weight:0.95,
+        groups:[
+          { type:'yesno', questions:[
+            { id:'g_nombre',  text:'Si tipeo el nombre de la marca, ¿aparece?' },
+            { id:'g_rubro',   text:'Si tipeo el rubro de la marca, ¿aparece?' },
+            { id:'g_region',  text:'Si tipeo rubro y región de la marca, ¿aparece?' },
+            { id:'g_combo',   text:'Si tipeo nombre, rubro y región, ¿aparece?' },
+          ]}
+        ]
+      },
+      { id:'yahoo', label:'Yahoo', weight:0.05,
+        groups:[
+          { type:'yesno', questions:[
+            { id:'y_nombre', text:'Si tipeo el nombre de la marca, ¿aparece?' },
+            { id:'y_rubro',  text:'Si tipeo el rubro de la marca, ¿aparece?' },
+            { id:'y_region', text:'Si tipeo rubro y región de la marca, ¿aparece?' },
+            { id:'y_combo',  text:'Si tipeo nombre, rubro y región, ¿aparece?' },
+          ]}
+        ]
+      },
+      { id:'bing', label:'Bing', weight:0,
+        groups:[
+          { type:'yesno', questions:[
+            { id:'b_nombre', text:'Si tipeo el nombre de la marca, ¿aparece?' },
+            { id:'b_rubro',  text:'Si tipeo el rubro de la marca, ¿aparece?' },
+            { id:'b_region', text:'Si tipeo rubro y región de la marca, ¿aparece?' },
+            { id:'b_combo',  text:'Si tipeo nombre, rubro y región, ¿aparece?' },
+          ]}
+        ]
+      },
+    ]
+  },
+  redes: {
+    label: 'Redes sociales',
+    subsections: [
+      { id:'facebook', label:'Facebook', weight:0.20,
+        groups:[
+          { label:'Características cualitativas', weightG:0.30, type:'yesno', questions:[
+            { id:'fb_imagen',   text:'¿Se percibe una imagen corporativa?' },
+            { id:'fb_bio',      text:'¿Posee una biografía completa?' },
+            { id:'fb_vinculos', text:'¿Existen vínculos a otras redes sociales?' },
+            { id:'fb_web',      text:'¿Existen enlaces al sitio web / blog?' },
+            { id:'fb_prod',     text:'¿Promocionan productos a través de la red social?' },
+            { id:'fb_impres',   text:'¿El muro da una impresión acorde al rubro?' },
+          ]},
+          { label:'Cantidad de fans / seguidores', weightG:0.50, type:'exclusive', questions:[
+            { id:'fb_f1', text:'Menos de 1.000', score:2 },
+            { id:'fb_f2', text:'Entre 1.000 y 5.000', score:4 },
+            { id:'fb_f3', text:'Entre 5.000 y 10.000', score:6 },
+            { id:'fb_f4', text:'Entre 10.000 y 100.000', score:8 },
+            { id:'fb_f5', text:'Más de 100.000', score:10 },
+          ]},
+          { label:'Performance de publicaciones', weightG:0.20, type:'yesno', questions:[
+            { id:'fb_plan',    text:'¿Se observa un plan de publicaciones?' },
+            { id:'fb_freq',    text:'¿Frecuencia mayor a 1 publicación por semana?' },
+            { id:'fb_img',     text:'¿Las publicaciones van acompañadas de imágenes o enlaces?' },
+            { id:'fb_horario', text:'¿Se publican en los horarios picos de fans?' },
+          ]},
+        ]
+      },
+      { id:'instagram', label:'Instagram', weight:0.25,
+        groups:[
+          { label:'Características cualitativas', weightG:0.30, type:'yesno', questions:[
+            { id:'ig_imagen',   text:'¿Se percibe una imagen corporativa?' },
+            { id:'ig_bio',      text:'¿Posee una biografía completa?' },
+            { id:'ig_vinculos', text:'¿Existen vínculos a otras redes sociales?' },
+            { id:'ig_web',      text:'¿Existen enlaces al sitio web / blog?' },
+            { id:'ig_prod',     text:'¿Promocionan productos a través de la red social?' },
+            { id:'ig_inter',    text:'¿Se muestra interacción con el público?' },
+            { id:'ig_hash',     text:'¿Utiliza hashtags?' },
+            { id:'ig_impres',   text:'¿El perfil da una impresión acorde al rubro?' },
+          ]},
+          { label:'Cantidad de seguidores', weightG:0.50, type:'exclusive', questions:[
+            { id:'ig_f1', text:'Menos de 1.000', score:2 },
+            { id:'ig_f2', text:'Entre 1.000 y 5.000', score:4 },
+            { id:'ig_f3', text:'Entre 5.000 y 10.000', score:6 },
+            { id:'ig_f4', text:'Entre 10.000 y 100.000', score:8 },
+            { id:'ig_f5', text:'Más de 100.000', score:10 },
+          ]},
+          { label:'Performance de publicaciones', weightG:0.20, type:'yesno', questions:[
+            { id:'ig_plan',    text:'¿Se observa un plan de publicaciones?' },
+            { id:'ig_freq',    text:'¿Frecuencia mayor a 1 publicación por semana?' },
+            { id:'ig_img',     text:'¿Las publicaciones van acompañadas de imágenes?' },
+            { id:'ig_horario', text:'¿Se publican en los horarios picos?' },
+          ]},
+        ]
+      },
+      { id:'linkedin', label:'LinkedIn', weight:0.15,
+        groups:[
+          { label:'Características cualitativas', weightG:0.60, type:'yesno', questions:[
+            { id:'li_imagen',   text:'¿Se percibe una imagen corporativa?' },
+            { id:'li_bio',      text:'¿Posee una biografía completa?' },
+            { id:'li_vinculos', text:'¿Existen vínculos a otras redes sociales?' },
+            { id:'li_web',      text:'¿Existen enlaces al sitio web / blog?' },
+            { id:'li_prod',     text:'¿Promocionan productos o tienen validaciones?' },
+            { id:'li_impres',   text:'¿El perfil da una impresión acorde al rubro?' },
+          ]},
+          { label:'Cantidad de seguidores', weightG:0.40, type:'exclusive', questions:[
+            { id:'li_f1', text:'Menos de 100', score:2 },
+            { id:'li_f2', text:'Entre 100 y 500', score:4 },
+            { id:'li_f3', text:'Entre 500 y 2.000', score:6 },
+            { id:'li_f4', text:'Entre 2.000 y 5.000', score:8 },
+            { id:'li_f5', text:'Más de 5.000', score:10 },
+          ]},
+        ]
+      },
+      { id:'twitter', label:'X (ex Twitter)', weight:0.10,
+        groups:[
+          { label:'Características cualitativas', weightG:0.30, type:'yesno', questions:[
+            { id:'tw_imagen',   text:'¿Se percibe una imagen corporativa?' },
+            { id:'tw_bio',      text:'¿Posee una biografía completa?' },
+            { id:'tw_vinculos', text:'¿Existen vínculos a otras redes sociales?' },
+            { id:'tw_web',      text:'¿Existen enlaces al sitio web?' },
+            { id:'tw_prod',     text:'¿Promocionan productos a través de la red social?' },
+            { id:'tw_impres',   text:'¿El perfil da una impresión acorde al rubro?' },
+          ]},
+          { label:'Cantidad de seguidores', weightG:0.70, type:'exclusive', questions:[
+            { id:'tw_f1', text:'Menos de 100', score:2 },
+            { id:'tw_f2', text:'Entre 100 y 500', score:4 },
+            { id:'tw_f3', text:'Entre 500 y 1.000', score:6 },
+            { id:'tw_f4', text:'Entre 1.000 y 5.000', score:8 },
+            { id:'tw_f5', text:'Más de 5.000', score:10 },
+          ]},
+        ]
+      },
+      { id:'tiktok', label:'TikTok', weight:0.05,
+        groups:[
+          { label:'Características cualitativas', weightG:0.30, type:'yesno', questions:[
+            { id:'tt_imagen',   text:'¿Se percibe una imagen corporativa?' },
+            { id:'tt_bio',      text:'¿Posee una biografía completa?' },
+            { id:'tt_vinculos', text:'¿Existen vínculos a otras redes?' },
+            { id:'tt_web',      text:'¿Existen enlaces al sitio web?' },
+            { id:'tt_prod',     text:'¿Promocionan productos a través de la red social?' },
+            { id:'tt_impres',   text:'¿El perfil da una impresión acorde al rubro?' },
+          ]},
+          { label:'Cantidad de seguidores', weightG:0.70, type:'exclusive', questions:[
+            { id:'tt_f1', text:'Menos de 100', score:2 },
+            { id:'tt_f2', text:'Entre 100 y 500', score:4 },
+            { id:'tt_f3', text:'Entre 500 y 1.000', score:6 },
+            { id:'tt_f4', text:'Entre 1.000 y 5.000', score:8 },
+            { id:'tt_f5', text:'Más de 5.000', score:10 },
+          ]},
+        ]
+      },
+      { id:'youtube', label:'YouTube', weight:0.25,
+        groups:[
+          { label:'Características cualitativas', weightG:0.30, type:'yesno', questions:[
+            { id:'yt_imagen',   text:'¿Se percibe una imagen corporativa?' },
+            { id:'yt_bio',      text:'¿Posee una descripción completa del canal?' },
+            { id:'yt_vinculos', text:'¿Existen vínculos a otras redes?' },
+            { id:'yt_web',      text:'¿Existen enlaces al sitio web?' },
+            { id:'yt_prod',     text:'¿Promocionan productos a través del canal?' },
+            { id:'yt_impres',   text:'¿El canal da una impresión acorde al rubro?' },
+          ]},
+          { label:'Cantidad de suscriptores', weightG:0.70, type:'exclusive', questions:[
+            { id:'yt_f1', text:'Menos de 100', score:2 },
+            { id:'yt_f2', text:'Entre 100 y 500', score:4 },
+            { id:'yt_f3', text:'Entre 500 y 1.000', score:6 },
+            { id:'yt_f4', text:'Entre 1.000 y 5.000', score:8 },
+            { id:'yt_f5', text:'Más de 5.000', score:10 },
+          ]},
+        ]
+      },
+    ]
+  },
+  web: {
+    label: 'Sitio web',
+    subsections: [
+      { id:'pagina_web', label:'Página web', weight:1,
+        groups:[
+          { type:'yesno', questions:[
+            { id:'web_imagen',  text:'¿Tiene imagen corporativa?' },
+            { id:'web_botones', text:'¿Los botones y enlaces son claros?' },
+            { id:'web_veloc',   text:'¿Tiene velocidad de carga aceptable?' },
+            { id:'web_vende',   text:'¿Comercializa productos a través del sitio?' },
+            { id:'web_carrito', text:'¿Integra carrito de compras?' },
+            { id:'web_pago',    text:'¿Integra algún medio de pago?' },
+            { id:'web_chat',    text:'¿Existe forma práctica de contacto (chat online)?' },
+            { id:'web_email',   text:'¿Tiene espacio de suscripción a novedades por email?' },
+            { id:'web_redes',   text:'¿Tiene vinculación con otras redes sociales?' },
+          ]}
+        ]
+      }
+    ]
+  },
+  email: {
+    label: 'E-mail marketing',
+    subsections: [
+      { id:'email_mkt', label:'Suscripción y newsletter', weight:1,
+        groups:[
+          { type:'yesno', questions:[
+            { id:'em_imagen',    text:'¿Tiene imagen corporativa?' },
+            { id:'em_identidad', text:'¿Respeta la identidad corporativa de la marca?' },
+            { id:'em_responsive',text:'¿Diseño responsive (se adapta a dispositivos móviles)?' },
+            { id:'em_contenido', text:'¿Tiene contenido interesante?' },
+            { id:'em_freq',      text:'¿Tiene frecuencia de envío regular?' },
+            { id:'em_relacion',  text:'¿Buena relación texto/imagen?' },
+            { id:'em_plataforma',text:'¿Utiliza plataformas de envío profesionales?' },
+            { id:'em_person',    text:'¿Personaliza los emails?' },
+          ]}
+        ]
+      }
+    ]
+  },
+  portales_h: {
+    label: 'Portales horizontales',
+    subsections: [
+      { id:'port_h', label:'Presencia en portales', weight:1,
+        groups:[
+          { type:'yesno', questions:[
+            { id:'ph_ml',  text:'¿Tiene presencia en Mercado Libre?' },
+            { id:'ph_az',  text:'¿Tiene presencia en Amazon?' },
+            { id:'ph_eb',  text:'¿Tiene presencia en eBay?' },
+            { id:'ph_al',  text:'¿Tiene presencia en Alibaba?' },
+            { id:'ph_ot',  text:'¿Tiene presencia en otro portal horizontal?' },
+          ]}
+        ]
+      }
+    ]
+  },
+  portales_v: {
+    label: 'Portales especializados',
+    subsections: [
+      { id:'port_v', label:'Presencia en portales verticales', weight:1,
+        groups:[
+          { type:'yesno', questions:[
+            { id:'pv_1', text:'¿Tiene presencia en portal especializado 1?' },
+            { id:'pv_2', text:'¿Tiene presencia en portal especializado 2?' },
+            { id:'pv_3', text:'¿Tiene presencia en portal especializado 3?' },
+            { id:'pv_4', text:'¿Tiene presencia en portal especializado 4?' },
+            { id:'pv_5', text:'¿Tiene presencia en portal especializado 5?' },
+          ]}
+        ]
+      }
+    ]
+  },
+  contenido: {
+    label: 'Contenido en perfiles digitales',
+    subsections: [
+      { id:'cont', label:'Gestión de contenido', weight:1,
+        groups:[
+          { type:'yesno', questions:[
+            { id:'ct_identidad', text:'¿Se respeta la identidad corporativa en todas las plataformas?' },
+            { id:'ct_adapta',    text:'¿Se adapta el contenido a cada red social o plataforma?' },
+          ]}
+        ]
+      }
+    ]
+  },
+};
+
+// App state
+let state = {
+  step: 1,
+  orgs: ['','','',''],
+  profiles: {},   // id -> { on, weight, pond }
+  answers: {},    // [orgIdx][qid] = true/false/null
+  currentOrg: 0,
+};
+
+// Init profiles state
+PROFILES_DEF.forEach(p => {
+  state.profiles[p.id] = { on: true, weight: 1, pond: 0 };
+});
+for(let i=0;i<4;i++) state.answers[i] = {};
+
+// ============================================================
+// STEP 1 — CONFIGURATION
+// ============================================================
+function renderProfilesTable() {
+  const tbody = document.getElementById('profiles-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+  PROFILES_DEF.forEach(p => {
+    const pr = state.profiles[p.id];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="profile-name">${p.label}</td>
+      <td>
+        <div class="toggle-wrap" onclick="toggleProfile('${p.id}')">
+          <div class="toggle-track ${pr.on?'on':''}" id="track-${p.id}"><div class="toggle-thumb"></div></div>
+          <span class="toggle-label">${pr.on?'Sí':'No'}</span>
+        </div>
+      </td>
+      <td>
+        <select id="wsel-${p.id}" ${!pr.on?'disabled':''} onchange="changeWeight('${p.id}',this.value)">
+          ${WEIGHTS_LIST.map(w=>`<option value="${w.value}" ${pr.weight===w.value?'selected':''}>${w.label}</option>`).join('')}
+        </select>
+      </td>
+      <td style="text-align:right">
+        <span class="pond-chip ${pondClass(pr.on?pr.weight:0)}">${pr.on && pr.pond>0 ? pr.pond.toFixed(3) : '—'}</span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  updatePond();
+}
+
+function pondClass(w) {
+  if(w===0) return 'pond-zero';
+  if(w<=0.75) return 'pond-low';
+  if(w===1) return 'pond-mid';
+  if(w===1.25) return 'pond-high';
+  return 'pond-vhigh';
+}
+
+function toggleProfile(id) {
+  state.profiles[id].on = !state.profiles[id].on;
+  if(!state.profiles[id].on) state.profiles[id].weight = 0;
+  else state.profiles[id].weight = 1;
+  renderProfilesTable();
+}
+
+function changeWeight(id, val) {
+  state.profiles[id].weight = parseFloat(val);
+  updatePond();
+  const pr = state.profiles[id];
+  const chip = document.querySelector(`#track-${id}`)?.closest('tr')?.querySelector('.pond-chip');
+  if(chip) { chip.className = 'pond-chip ' + pondClass(pr.on?pr.weight:0); chip.textContent = pr.on && pr.pond>0 ? pr.pond.toFixed(3) : '—'; }
+}
+
+function updatePond() {
+  const active = PROFILES_DEF.filter(p=>state.profiles[p.id].on);
+  const sumW = active.reduce((a,p)=>a+state.profiles[p.id].weight,0);
+  let total = 0;
+  PROFILES_DEF.forEach(p=>{
+    if(state.profiles[p.id].on && sumW>0) {
+      state.profiles[p.id].pond = state.profiles[p.id].weight/sumW;
+      total += state.profiles[p.id].pond;
+    } else {
+      state.profiles[p.id].pond = 0;
+    }
+  });
+  const el = document.getElementById('total-pond');
+  if(el) el.textContent = total.toFixed(2);
+  const hasError = PROFILES_DEF.some(p=>state.profiles[p.id].on && state.profiles[p.id].weight===0);
+  const errEl = document.getElementById('profile-error');
+  if(errEl) errEl.style.display = hasError ? 'block' : 'none';
+  const btn = document.getElementById('btn-to-2');
+  if(btn) btn.disabled = hasError || active.length===0;
+  // refresh chips
+  PROFILES_DEF.forEach(p=>{
+    const pr = state.profiles[p.id];
+    // find chip in row
+  });
+}
+
+// ============================================================
+// STEP 2 — EVALUATION
+// ============================================================
+function renderOrgTabs() {
+  const wrap = document.getElementById('org-tabs');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  for(let i=0;i<4;i++) {
+    const name = state.orgs[i] || `Organización ${i+1}`;
+    const btn = document.createElement('button');
+    const done = isOrgComplete(i);
+    btn.className = `org-tab ${i===state.currentOrg?'active':''} ${done?'done':''}`;
+    btn.textContent = (done?'✓ ':'')+name+(i===0?' (propia)':'');
+    btn.onclick = ()=>{ state.currentOrg = i; renderOrgTabs(); renderEvalContent(); };
+    wrap.appendChild(btn);
+  }
+}
+
+function isOrgComplete(orgIdx) {
+  const activeProfiles = PROFILES_DEF.filter(p=>state.profiles[p.id].on);
+  for(const p of activeProfiles) {
+    const sec = SECTIONS[p.id];
+    for(const sub of sec.subsections) {
+      for(const grp of sub.groups) {
+        if(grp.type==='exclusive') {
+          const anySet = grp.questions.some(q=>state.answers[orgIdx][q.id]===true);
+          if(!anySet) return false;
+        } else {
+          for(const q of grp.questions) {
+            if(state.answers[orgIdx][q.id]===undefined||state.answers[orgIdx][q.id]===null) return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
+function renderEvalContent() {
+  const wrap = document.getElementById('eval-content');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const orgIdx = state.currentOrg;
+  const activeProfiles = PROFILES_DEF.filter(p=>state.profiles[p.id].on);
+
+  activeProfiles.forEach(pDef => {
+    const sec = SECTIONS[pDef.id];
+    const secDiv = document.createElement('div');
+    secDiv.className = 'section-block';
+
+    const secScore = calcSectionScore(pDef.id, orgIdx);
+    secDiv.innerHTML = `
+      <div class="section-header">
+        ${sec.label}
+        <span class="section-score">${secScore.toFixed(1)}/10</span>
+      </div>
+      <div class="section-body" id="secbody-${pDef.id}"></div>
+    `;
+    wrap.appendChild(secDiv);
+    const body = secDiv.querySelector('.section-body');
+
+    sec.subsections.forEach(sub => {
+      sub.groups.forEach(grp => {
+        const grpDiv = document.createElement('div');
+        grpDiv.className = 'subsection';
+        if(grp.label || sub.label) {
+          grpDiv.innerHTML = `<div class="subsection-header">${sub.label}${grp.label?' — '+grp.label:''}</div>`;
+        }
+
+        if(grp.type==='yesno') {
+          grp.questions.forEach(q => {
+            const val = state.answers[orgIdx][q.id];
+            const row = document.createElement('div');
+            row.className = 'question-row';
+            row.innerHTML = `
+              <span class="question-text">${q.text}</span>
+              <div class="yesno-btns">
+                <button class="yn-btn yes ${val===true?'sel':''}" onclick="setAnswer(${orgIdx},'${q.id}',true,'${pDef.id}')">Sí</button>
+                <button class="yn-btn no ${val===false?'sel':''}" onclick="setAnswer(${orgIdx},'${q.id}',false,'${pDef.id}')">No</button>
+              </div>
+            `;
+            grpDiv.appendChild(row);
+          });
+        } else if(grp.type==='exclusive') {
+          const excDiv = document.createElement('div');
+          excDiv.className = 'exclusive-group';
+          grp.questions.forEach(q => {
+            const sel = state.answers[orgIdx][q.id]===true;
+            const row = document.createElement('div');
+            row.className = `question-row ${sel?'exclusive-row-sel':''}`;
+            row.innerHTML = `
+              <div class="exclusive-check ${sel?'checked':''}"></div>
+              <span class="question-text">${q.text}</span>
+            `;
+            row.onclick = () => setExclusive(orgIdx, grp.questions, q.id, pDef.id);
+            excDiv.appendChild(row);
+          });
+          grpDiv.appendChild(excDiv);
+        }
+        body.appendChild(grpDiv);
+      });
+    });
+  });
+
+  updateEvalProgress();
+  document.getElementById('btn-to-3').disabled = false;
+}
+
+function setAnswer(orgIdx, qid, val, profileId) {
+  state.answers[orgIdx][qid] = val;
+  // re-render only this button pair efficiently
+  const allBtns = document.querySelectorAll(`[onclick*="'${qid}'"]`);
+  allBtns.forEach(btn => {
+    if(btn.classList.contains('yes')) btn.classList.toggle('sel', val===true);
+    if(btn.classList.contains('no')) btn.classList.toggle('sel', val===false);
+  });
+  // update section score
+  const secScore = calcSectionScore(profileId, orgIdx);
+  const scoreEl = document.querySelector(`#secbody-${profileId}`)?.previousElementSibling?.querySelector('.section-score');
+  if(scoreEl) scoreEl.textContent = secScore.toFixed(1)+'/10';
+  updateEvalProgress();
+  renderOrgTabs();
+}
+
+function setExclusive(orgIdx, questions, selectedId, profileId) {
+  questions.forEach(q => {
+    state.answers[orgIdx][q.id] = (q.id===selectedId) ? true : false;
+  });
+  renderEvalContent();
+}
+
+function updateEvalProgress() {
+  let total=0, answered=0;
+  const activeProfiles = PROFILES_DEF.filter(p=>state.profiles[p.id].on);
+  for(let i=0;i<4;i++) {
+    activeProfiles.forEach(pDef=>{
+      const sec = SECTIONS[pDef.id];
+      sec.subsections.forEach(sub=>{
+        sub.groups.forEach(grp=>{
+          if(grp.type==='exclusive') {
+            total++;
+            if(grp.questions.some(q=>state.answers[i][q.id]===true)) answered++;
+          } else {
+            grp.questions.forEach(q=>{
+              total++;
+              if(state.answers[i][q.id]!==undefined&&state.answers[i][q.id]!==null) answered++;
+            });
+          }
+        });
+      });
+    });
+  }
+  const pct = total>0 ? Math.round(answered/total*100) : 0;
+  const bar = document.getElementById('eval-progress');
+  if(bar) bar.style.width = pct+'%';
+}
+
+// ============================================================
+// SCORING
+// ============================================================
+function calcSectionScore(profileId, orgIdx) {
+  const sec = SECTIONS[profileId];
+  if(profileId==='buscadores') {
+    return calcBuscadores(orgIdx);
+  }
+  if(profileId==='redes') {
+    return calcRedes(orgIdx);
+  }
+  // Generic: all questions equal weight
+  let total=0, count=0;
+  sec.subsections.forEach(sub=>{
+    sub.groups.forEach(grp=>{
+      if(grp.type==='yesno') {
+        grp.questions.forEach(q=>{
+          count++;
+          if(state.answers[orgIdx][q.id]===true) total+=10;
+        });
+      } else if(grp.type==='exclusive') {
+        const sel = grp.questions.find(q=>state.answers[orgIdx][q.id]===true);
+        if(sel) total += sel.score;
+        count++;
+      }
+    });
+  });
+  return count>0 ? total/count : 0;
+}
+
+function calcBuscadores(orgIdx) {
+  // Each engine: avg of 4 questions * engine weight
+  const engines = [
+    {sub:'google', w:0.95, qs:['g_nombre','g_rubro','g_region','g_combo']},
+    {sub:'yahoo',  w:0.05, qs:['y_nombre','y_rubro','y_region','y_combo']},
+    {sub:'bing',   w:0,    qs:['b_nombre','b_rubro','b_region','b_combo']},
+  ];
+  // Normalize engine weights
+  const totalW = engines.reduce((a,e)=>a+e.w,0);
+  let score=0;
+  engines.forEach(e=>{
+    const w = totalW>0 ? e.w/totalW : 0;
+    const qs = e.qs.map(qid=>state.answers[orgIdx][qid]===true?10:0);
+    const avg = qs.reduce((a,v)=>a+v,0)/qs.length;
+    score += avg*w;
+  });
+  return score;
+}
+
+function calcRedes(orgIdx) {
+  const nets = ['facebook','instagram','linkedin','twitter','tiktok','youtube'];
+  const netWeights = {facebook:0.20,instagram:0.25,linkedin:0.15,twitter:0.10,tiktok:0.05,youtube:0.25};
+  const totalW = Object.values(netWeights).reduce((a,v)=>a+v,0);
+  let score=0;
+  nets.forEach(net=>{
+    const w = netWeights[net]/totalW;
+    const sec = SECTIONS['redes'];
+    const sub = sec.subsections.find(s=>s.id===net);
+    if(!sub) return;
+    let netScore=0, netWeightSum=0;
+    sub.groups.forEach(grp=>{
+      const gw = grp.weightG || (1/sub.groups.length);
+      netWeightSum += gw;
+      if(grp.type==='yesno') {
+        const qs = grp.questions;
+        const avg = qs.reduce((a,q)=>a+(state.answers[orgIdx][q.id]===true?10:0),0)/qs.length;
+        netScore += avg*gw;
+      } else {
+        const sel = grp.questions.find(q=>state.answers[orgIdx][q.id]===true);
+        netScore += (sel?sel.score:0)*gw;
+      }
+    });
+    if(netWeightSum>0) netScore /= netWeightSum;
+    score += netScore*w;
+  });
+  return score;
+}
+
+function calcAllScores() {
+  const results = [];
+  for(let i=0;i<4;i++) {
+    const orgScores = {};
+    let totalScore=0;
+    PROFILES_DEF.forEach(pDef=>{
+      if(!state.profiles[pDef.id].on) { orgScores[pDef.id]=0; return; }
+      const s = calcSectionScore(pDef.id, i);
+      orgScores[pDef.id] = s;
+      totalScore += s * state.profiles[pDef.id].pond;
+    });
+    results.push({ org: state.orgs[i]||`Organización ${i+1}`, scores: orgScores, total: totalScore });
+  }
+  return results;
+}
+
+function scoreColor(s) {
+  if(s < 4) return '#c0392b';
+  if(s < 8) return '#d4ac0d';
+  return '#1a7a4a';
+}
+function scoreLabel(s) {
+  if(s < 4) return '🔴 Bajo';
+  if(s < 8) return '🟡 Medio';
+  return '🟢 Alto';
+}
+
+// ============================================================
+// STEP 3 — DASHBOARD
+// ============================================================
+let radarChart=null, barChart=null;
+
+function renderDashboard() {
+  const results = calcAllScores();
+  const wrap = document.getElementById('dashboard-content');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+
+  // Score cards
+  const grid = document.createElement('div');
+  grid.className = 'score-grid';
+  results.forEach((r,i)=>{
+    const card = document.createElement('div');
+    card.className = 'score-card';
+    card.innerHTML = `
+      <div class="score-card-header" style="background:${ORG_COLORS[i]}">
+        <div class="score-card-name">${r.org}</div>
+        ${i===0?'<div class="score-card-own">Propia</div>':''}
+      </div>
+      <div class="score-card-body">
+        <div class="big-score" style="color:${scoreColor(r.total)}">${r.total.toFixed(2)}</div>
+        <div class="score-label">DICOP Score</div>
+        <div style="margin-top:8px;font-family:sans-serif;font-size:0.82rem;">${scoreLabel(r.total)}</div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+
+  // Legend
+  const legendDiv = document.createElement('div');
+  legendDiv.innerHTML = `<div style="font-family:sans-serif;font-size:0.8rem;color:#666;display:flex;gap:16px;flex-wrap:wrap;margin-bottom:1rem;">
+    <span><span style="color:#c0392b;font-weight:600;">● Bajo</span> = 0–4</span>
+    <span><span style="color:#d4ac0d;font-weight:600;">● Medio</span> = 4–8</span>
+    <span><span style="color:#1a7a4a;font-weight:600;">● Alto</span> = 8–10</span>
+  </div>`;
+  wrap.appendChild(legendDiv);
+
+  // Bar chart
+  const barCard = document.createElement('div');
+  barCard.className = 'card';
+  barCard.innerHTML = '<div class="card-title">Puntuación general comparada</div><div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;font-family:sans-serif;font-size:0.8rem;" id="bar-legend"></div><div class="chart-wrap" style="height:280px"><canvas id="bar-chart" role="img" aria-label="Gráfico de barras de puntuación DICOP por organización">Puntuación DICOP por organización.</canvas></div>';
+  wrap.appendChild(barCard);
+
+  // Radar chart
+  const activeProfiles = PROFILES_DEF.filter(p=>state.profiles[p.id].on);
+  if(activeProfiles.length >= 3) {
+    const radarCard = document.createElement('div');
+    radarCard.className = 'card';
+    radarCard.innerHTML = '<div class="card-title">Perfil competitivo digital (radar)</div><div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;font-family:sans-serif;font-size:0.8rem;" id="radar-legend"></div><div class="chart-wrap" style="height:380px"><canvas id="radar-chart" role="img" aria-label="Gráfico radar del perfil competitivo digital">Perfil competitivo digital comparado.</canvas></div>';
+    wrap.appendChild(radarCard);
+  }
+
+  // Build charts after DOM insert
+  setTimeout(()=>{
+    // Bar chart
+    if(barChart) barChart.destroy();
+    const barLeg = document.getElementById('bar-legend');
+    if(barLeg) {
+      barLeg.innerHTML = results.map((r,i)=>`<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:2px;background:${ORG_COLORS[i]};display:inline-block"></span>${r.org}</span>`).join('');
+    }
+    const bCtx = document.getElementById('bar-chart');
+    if(bCtx) {
+      barChart = new Chart(bCtx, {
+        type:'bar',
+        data:{
+          labels: results.map(r=>r.org),
+          datasets:[{
+            label:'DICOP Score',
+            data: results.map(r=>+r.total.toFixed(2)),
+            backgroundColor: ORG_COLORS,
+            borderRadius: 5,
+          }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false} },
+          scales:{ y:{ min:0, max:10, ticks:{font:{family:'sans-serif',size:12}}, grid:{color:'#f0ede8'} }, x:{ticks:{font:{family:'sans-serif',size:12}}, grid:{display:false}} }
+        }
+      });
+    }
+
+    // Radar
+    if(activeProfiles.length>=3) {
+      if(radarChart) radarChart.destroy();
+      const rLeg = document.getElementById('radar-legend');
+      if(rLeg) rLeg.innerHTML = results.map((r,i)=>`<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:2px;background:${ORG_COLORS[i]};display:inline-block"></span>${r.org}</span>`).join('');
+      const rCtx = document.getElementById('radar-chart');
+      if(rCtx) {
+        radarChart = new Chart(rCtx, {
+          type:'radar',
+          data:{
+            labels: activeProfiles.map(p=>PROFILES_DEF.find(d=>d.id===p.id).label),
+            datasets: results.map((r,i)=>({
+              label: r.org,
+              data: activeProfiles.map(p=>+(r.scores[p.id]||0).toFixed(2)),
+              borderColor: ORG_COLORS[i],
+              backgroundColor: ORG_COLORS[i]+'22',
+              pointBackgroundColor: ORG_COLORS[i],
+              borderWidth:2,
+            }))
+          },
+          options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{display:false} },
+            scales:{ r:{ min:0, max:10, ticks:{stepSize:2,font:{family:'sans-serif',size:11}}, grid:{color:'#e0ddd6'}, pointLabels:{font:{family:'sans-serif',size:11}} } }
+          }
+        });
+      }
+    }
+  },50);
+}
+
+// ============================================================
+// STEP 4 — DETAIL
+// ============================================================
+function renderDetail() {
+  const results = calcAllScores();
+  const wrap = document.getElementById('detail-content');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const activeProfiles = PROFILES_DEF.filter(p=>state.profiles[p.id].on);
+
+  activeProfiles.forEach(pDef=>{
+    const card = document.createElement('div');
+    card.className = 'card';
+    const tableRows = results.map((r,i)=>{
+      const s = r.scores[pDef.id]||0;
+      const barW = Math.round(s/10*100);
+      return `<tr>
+        <td style="font-family:sans-serif;font-size:0.88rem;font-weight:500;color:${ORG_COLORS[i]}">${r.org}${i===0?' ★':''}</td>
+        <td class="bar-cell"><div class="mini-bar-wrap"><div class="mini-bar" style="width:${barW}%;background:${ORG_COLORS[i]}"></div></div></td>
+        <td style="font-family:sans-serif;font-size:0.9rem;text-align:right;font-weight:600;color:${scoreColor(s)}">${s.toFixed(2)}</td>
+        <td style="font-family:sans-serif;font-size:0.8rem;color:#888">${scoreLabel(s)}</td>
+      </tr>`;
+    }).join('');
+    card.innerHTML = `
+      <div class="card-title">${pDef.label}</div>
+      <table class="detail-table">
+        <thead><tr><th>Organización</th><th>Nivel</th><th style="text-align:right">Score</th><th>Evaluación</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    `;
+    wrap.appendChild(card);
+  });
+
+  // Summary table
+  const sumCard = document.createElement('div');
+  sumCard.className = 'card';
+  const headerCells = results.map((r,i)=>`<th style="color:${ORG_COLORS[i]};text-align:right">${r.org}</th>`).join('');
+  const profileRows = activeProfiles.map(pDef=>{
+    const cells = results.map((r,i)=>{
+      const s = (r.scores[pDef.id]||0).toFixed(2);
+      return `<td style="text-align:right;font-family:sans-serif;color:${scoreColor(r.scores[pDef.id]||0)};font-weight:600">${s}</td>`;
+    }).join('');
+    return `<tr><td style="font-family:sans-serif;font-size:0.85rem">${pDef.label}</td>${cells}</tr>`;
+  }).join('');
+  const totalRow = results.map((r,i)=>`<td style="text-align:right;font-family:sans-serif;font-weight:700;color:${scoreColor(r.total)}">${r.total.toFixed(2)}</td>`).join('');
+  sumCard.innerHTML = `
+    <div class="card-title">Tabla resumen general</div>
+    <div style="overflow-x:auto">
+    <table class="detail-table" style="min-width:400px">
+      <thead><tr><th>Perfil digital</th>${headerCells}</tr></thead>
+      <tbody>
+        ${profileRows}
+        <tr style="border-top:2px solid var(--border);background:#f5f4f0">
+          <td style="font-family:sans-serif;font-weight:700;font-size:0.88rem">DICOP Total</td>
+          ${totalRow}
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  `;
+  wrap.appendChild(sumCard);
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function goToStep(n) {
+  if(n===1) {
+    renderProfilesTable();
+  }
+  if(n===2) {
+    // Read org names
+    for(let i=0;i<4;i++) {
+      const el = document.getElementById(`org-${i}`);
+      if(el) state.orgs[i] = el.value.trim();
+    }
+    state.currentOrg = 0;
+    renderOrgTabs();
+    renderEvalContent();
+  }
+  if(n===3) {
+    renderDashboard();
+  }
+  if(n===4) {
+    renderDetail();
+  }
+
+  document.getElementById(`step-${state.step}`).classList.remove('active');
+  state.step = n;
+  document.getElementById(`step-${n}`).classList.add('active');
+
+  // Update dots
+  for(let i=1;i<=4;i++) {
+    const dot = document.getElementById(`dot-${i}`);
+    if(!dot) continue;
+    dot.classList.remove('active','done');
+    if(i===n) dot.classList.add('active');
+    else if(i<n) dot.classList.add('done');
+  }
+
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+function exportReport() {
+  const results = calcAllScores();
+  const activeProfiles = PROFILES_DEF.filter(p=>state.profiles[p.id].on);
+  const date = new Date().toLocaleDateString('es-AR');
+
+  const rows = activeProfiles.map(pDef=>{
+    const cells = results.map((r,i)=>`<td style="text-align:center;color:${scoreColor(r.scores[pDef.id]||0)};font-weight:600">${(r.scores[pDef.id]||0).toFixed(2)}</td>`).join('');
+    return `<tr><td>${pDef.label}</td>${cells}</tr>`;
+  }).join('');
+  const totalRow = results.map((r,i)=>`<td style="text-align:center;color:${scoreColor(r.total)};font-weight:700;font-size:1.1rem">${r.total.toFixed(2)}</td>`).join('');
+
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>DICOP — Reporte</title>
+  <style>
+    body{font-family:Georgia,serif;max-width:860px;margin:0 auto;padding:2rem;background:#f5f4f0;color:#1c1c1a}
+    h1{color:#1a3a5c;font-size:1.8rem;letter-spacing:2px;text-transform:uppercase;border-bottom:3px solid #c9a84c;padding-bottom:0.5rem}
+    h2{color:#1a3a5c;font-size:1.1rem;margin:1.5rem 0 0.5rem}
+    table{width:100%;border-collapse:collapse;margin-bottom:1.5rem;background:#fff}
+    th{background:#1a3a5c;color:#fff;padding:8px 12px;font-family:sans-serif;font-size:0.8rem;text-transform:uppercase}
+    td{padding:8px 12px;border-bottom:1px solid #e0ddd6;font-family:sans-serif;font-size:0.88rem}
+    .meta{font-family:sans-serif;font-size:0.85rem;color:#666;margin-bottom:1.5rem}
+    .legend{font-family:sans-serif;font-size:0.8rem;color:#666;margin-bottom:1rem;display:flex;gap:1rem}
+  </style></head><body>
+  <h1>DICOP — Digital Competitive Profile</h1>
+  <div class="meta">Reporte generado: ${date}</div>
+  <div class="legend">
+    <span><strong style="color:#c0392b">● Bajo</strong> = 0–4</span>
+    <span><strong style="color:#d4ac0d">● Medio</strong> = 4–8</span>
+    <span><strong style="color:#1a7a4a">● Alto</strong> = 8–10</span>
+  </div>
+  <h2>Resumen comparativo</h2>
+  <table>
+    <thead><tr><th>Perfil digital</th>${results.map(r=>`<th style="text-align:center">${r.org}</th>`).join('')}</tr></thead>
+    <tbody>
+      ${rows}
+      <tr style="background:#f5f4f0"><td><strong>DICOP Total</strong></td>${totalRow}</tr>
+    </tbody>
+  </table>
+  <p style="font-family:sans-serif;font-size:0.78rem;color:#aaa">Generado con DICOP — Digital Competitive Profile</p>
+  </body></html>`;
+
+  const blob = new Blob([html],{type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `DICOP_reporte_${date.replace(/\//g,'-')}.html`;
+  a.click();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+renderProfilesTable();
+</script>
+</body>
+</html>
